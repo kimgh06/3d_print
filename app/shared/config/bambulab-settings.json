@@ -1,0 +1,160 @@
+{
+  "bambuLabProfiles": {
+    "speedModes": {
+      "silent": {
+        "name": "Silent Mode",
+        "printSpeed": 40,
+        "travelSpeed": 120,
+        "acceleration": 500,
+        "jerk": 8,
+        "fanSpeed": 30,
+        "description": "조용한 출력, 최고 품질"
+      },
+      "standard": {
+        "name": "Standard Mode", 
+        "printSpeed": 80,
+        "travelSpeed": 150,
+        "acceleration": 1000,
+        "jerk": 12,
+        "fanSpeed": 50,
+        "description": "균형잡힌 속도와 품질"
+      },
+      "sport": {
+        "name": "Sport Mode",
+        "printSpeed": 120,
+        "travelSpeed": 200,
+        "acceleration": 2000,
+        "jerk": 15,
+        "fanSpeed": 80,
+        "description": "빠른 출력, 표준 품질"
+      },
+      "ludicrous": {
+        "name": "Ludicrous Mode",
+        "printSpeed": 200,
+        "travelSpeed": 300,
+        "acceleration": 5000,
+        "jerk": 20,
+        "fanSpeed": 100,
+        "description": "최고 속도, 드래프트 품질"
+      }
+    },
+    "amsSettings": {
+      "enabled": true,
+      "autoSwitching": true,
+      "filamentSlots": [
+        {
+          "id": 1,
+          "material": "PLA",
+          "color": "#FF0000",
+          "brand": "Bambu Lab",
+          "costPerGram": 50,
+          "diameter": 1.75,
+          "temperature": {
+            "nozzle": 210,
+            "bed": 60
+          }
+        },
+        {
+          "id": 2,
+          "material": "ABS",
+          "color": "#0000FF", 
+          "brand": "Bambu Lab",
+          "costPerGram": 80,
+          "diameter": 1.75,
+          "temperature": {
+            "nozzle": 250,
+            "bed": 90
+          }
+        },
+        {
+          "id": 3,
+          "material": "PETG",
+          "color": "#00FF00",
+          "brand": "Bambu Lab", 
+          "costPerGram": 75,
+          "diameter": 1.75,
+          "temperature": {
+            "nozzle": 230,
+            "bed": 80
+          }
+        },
+        {
+          "id": 4,
+          "material": "TPU",
+          "color": "#FFFF00",
+          "brand": "Bambu Lab",
+          "costPerGram": 120,
+          "diameter": 1.75,
+          "temperature": {
+            "nozzle": 220,
+            "bed": 50
+          }
+        }
+      ]
+    },
+    "qualityProfiles": {
+      "ultraFine": {
+        "layerHeight": 0.08,
+        "wallCount": 4,
+        "infillDensity": 25,
+        "supportDensity": 20,
+        "description": "초정밀 품질"
+      },
+      "fine": {
+        "layerHeight": 0.12,
+        "wallCount": 3,
+        "infillDensity": 20,
+        "supportDensity": 18,
+        "description": "고품질"
+      },
+      "standard": {
+        "layerHeight": 0.2,
+        "wallCount": 3,
+        "infillDensity": 15,
+        "supportDensity": 15,
+        "description": "표준 품질"
+      },
+      "draft": {
+        "layerHeight": 0.3,
+        "wallCount": 2,
+        "infillDensity": 10,
+        "supportDensity": 12,
+        "description": "드래프트 품질"
+      }
+    },
+    "materialProfiles": {
+      "PLA": {
+        "density": 1.25,
+        "shrinkage": 0.002,
+        "printTemp": { "min": 190, "max": 220 },
+        "bedTemp": { "min": 50, "max": 70 },
+        "fanSpeed": 100,
+        "retraction": { "distance": 0.8, "speed": 40 }
+      },
+      "ABS": {
+        "density": 1.05,
+        "shrinkage": 0.008,
+        "printTemp": { "min": 230, "max": 260 },
+        "bedTemp": { "min": 80, "max": 100 },
+        "fanSpeed": 30,
+        "retraction": { "distance": 1.0, "speed": 40 }
+      },
+      "PETG": {
+        "density": 1.27,
+        "shrinkage": 0.004,
+        "printTemp": { "min": 220, "max": 250 },
+        "bedTemp": { "min": 70, "max": 90 },
+        "fanSpeed": 50,
+        "retraction": { "distance": 1.2, "speed": 30 }
+      },
+      "TPU": {
+        "density": 1.2,
+        "shrinkage": 0.006,
+        "printTemp": { "min": 210, "max": 230 },
+        "bedTemp": { "min": 40, "max": 60 },
+        "fanSpeed": 80,
+        "retraction": { "distance": 0.5, "speed": 20 }
+      }
+    }
+  }
+}
