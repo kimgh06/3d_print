@@ -6,13 +6,17 @@ import { PLYLoader } from "three/examples/jsm/loaders/PLYLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import JSZip from "jszip";
-import { Model3D } from "~/entities/model/types";
+import { Model3D, Model3MFSettings } from "~/entities/model/types";
+import { useEstimationStore } from "~/shared/lib/store";
 
 // 3MF 파싱 실패 시 fallback 정보를 담는 인터페이스
 interface FallbackGeometry extends THREE.BufferGeometry {
   isFallback?: boolean;
   originalError?: string;
 }
+
+// SSR 체크 함수
+const isServer = typeof window === "undefined";
 
 export const use3DPreview = (model: Model3D | null) => {
   const mountRef = useRef<HTMLDivElement>(null);
@@ -25,8 +29,14 @@ export const use3DPreview = (model: Model3D | null) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Zustand 스토어 액세스
+  const setExtracted3MFSettings = useEstimationStore(
+    (state) => state.setExtracted3MFSettings
+  );
+
   const initializeScene = useCallback(() => {
-    if (!mountRef.current) return;
+    // SSR 환경에서는 실행하지 않음
+    if (isServer || !mountRef.current) return;
 
     const width = mountRef.current.clientWidth;
     const height = mountRef.current.clientHeight;
@@ -81,7 +91,7 @@ export const use3DPreview = (model: Model3D | null) => {
     animate();
   }, []);
 
-  // 메시 요소 처리 함수 - 배치 처리로 스택 오버플로우 방지 및 메모리 최적화
+  // 메시 요소 처리 함수 - 스택 오버플로우 방지 및 메모리 최적화
   const processMeshElement = useCallback(
     async (meshElement: Element, vertexOffset: number) => {
       const vertices = meshElement.getElementsByTagName("vertices")[0];
@@ -98,87 +108,39 @@ export const use3DPreview = (model: Model3D | null) => {
         `Processing mesh: ${vertexElements.length} vertices, ${triangleElements.length} triangles`
       );
 
-      // 큰 모델에 대한 배치 처리 - 크기에 따라 배치 크기 조정
-      const SMALL_BATCH = 5000;
-      const LARGE_BATCH = 1000;
-      const BATCH_SIZE =
-        vertexElements.length > 50000 ? LARGE_BATCH : SMALL_BATCH;
-
+      // 직접 일반 배열 사용으로 변환 오버헤드 제거
       const positions: number[] = [];
       const indices: number[] = [];
 
-      // TypedArray 사용으로 메모리 효율성 향상
-      const tempPositions = new Float32Array(vertexElements.length * 3);
-      const tempIndices = new Uint32Array(triangleElements.length * 3);
+      // 정점 처리 - 직접 배열에 푸시하여 TypedArray 변환 단계 제거
+      for (let i = 0; i < vertexElements.length; i++) {
+        const vertex = vertexElements[i];
+        const x = parseFloat(vertex.getAttribute("x") || "0");
+        const y = parseFloat(vertex.getAttribute("y") || "0");
+        const z = parseFloat(vertex.getAttribute("z") || "0");
 
-      // 정점 처리 - 배치로 나누어 처리
-      let positionIndex = 0;
-      for (
-        let batchStart = 0;
-        batchStart < vertexElements.length;
-        batchStart += BATCH_SIZE
-      ) {
-        const batchEnd = Math.min(
-          batchStart + BATCH_SIZE,
-          vertexElements.length
-        );
+        positions.push(x, y, z);
 
-        // 현재 배치 처리
-        for (let i = batchStart; i < batchEnd; i++) {
-          const vertex = vertexElements[i];
-          const x = parseFloat(vertex.getAttribute("x") || "0");
-          const y = parseFloat(vertex.getAttribute("y") || "0");
-          const z = parseFloat(vertex.getAttribute("z") || "0");
-
-          tempPositions[positionIndex] = x;
-          tempPositions[positionIndex + 1] = y;
-          tempPositions[positionIndex + 2] = z;
-          positionIndex += 3;
-        }
-
-        // 대용량 데이터 처리 시 이벤트 루프에 제어권 양보
-        if (batchEnd < vertexElements.length) {
+        // 대량 데이터 처리 시 주기적으로 이벤트 루프에 제어권 양보
+        if (i > 0 && i % 5000 === 0) {
           await new Promise((resolve) => setTimeout(resolve, 0));
         }
       }
 
-      // 삼각형 인덱스 처리 - 배치로 나누어 처리
-      let triangleIndex = 0;
-      for (
-        let batchStart = 0;
-        batchStart < triangleElements.length;
-        batchStart += BATCH_SIZE
-      ) {
-        const batchEnd = Math.min(
-          batchStart + BATCH_SIZE,
-          triangleElements.length
-        );
+      // 삼각형 인덱스 처리 - 직접 배열에 푸시
+      for (let i = 0; i < triangleElements.length; i++) {
+        const triangle = triangleElements[i];
+        const v1 = parseInt(triangle.getAttribute("v1") || "0") + vertexOffset;
+        const v2 = parseInt(triangle.getAttribute("v2") || "0") + vertexOffset;
+        const v3 = parseInt(triangle.getAttribute("v3") || "0") + vertexOffset;
 
-        // 현재 배치 처리
-        for (let i = batchStart; i < batchEnd; i++) {
-          const triangle = triangleElements[i];
-          const v1 =
-            parseInt(triangle.getAttribute("v1") || "0") + vertexOffset;
-          const v2 =
-            parseInt(triangle.getAttribute("v2") || "0") + vertexOffset;
-          const v3 =
-            parseInt(triangle.getAttribute("v3") || "0") + vertexOffset;
+        indices.push(v1, v2, v3);
 
-          tempIndices[triangleIndex] = v1;
-          tempIndices[triangleIndex + 1] = v2;
-          tempIndices[triangleIndex + 2] = v3;
-          triangleIndex += 3;
-        }
-
-        // 대용량 데이터 처리 시 이벤트 루프에 제어권 양보
-        if (batchEnd < triangleElements.length) {
+        // 대량 데이터 처리 시 주기적으로 이벤트 루프에 제어권 양보
+        if (i > 0 && i % 5000 === 0) {
           await new Promise((resolve) => setTimeout(resolve, 0));
         }
       }
-
-      // TypedArray를 일반 배열로 변환
-      positions.push(...Array.from(tempPositions));
-      indices.push(...Array.from(tempIndices));
 
       return {
         positions,
@@ -202,6 +164,9 @@ export const use3DPreview = (model: Model3D | null) => {
           createFolders: false, // 폴더 생성 비활성화
           base64: false, // base64 디코딩 비활성화
         });
+
+        // 3MF 설정 정보 추출 (지오메트리 처리와 병렬로 수행)
+        const settingsPromise = extract3MFSettings(zip);
 
         // 3MF 파일 구조 디버깅
         const fileNames = Object.keys(zip.files);
@@ -265,8 +230,15 @@ export const use3DPreview = (model: Model3D | null) => {
           const result = await processMeshElement(mesh, currentVertexOffset);
 
           if (result.positions.length > 0) {
-            allPositions.push(...result.positions);
-            allIndices.push(...result.indices);
+            // 큰 배열 병합 시 스택 오버플로우 방지를 위한 청크 단위 처리
+            for (let i = 0; i < result.positions.length; i += 10000) {
+              const chunk = result.positions.slice(i, i + 10000);
+              allPositions.push(...chunk);
+            }
+            for (let i = 0; i < result.indices.length; i += 10000) {
+              const chunk = result.indices.slice(i, i + 10000);
+              allIndices.push(...chunk);
+            }
             currentVertexOffset += result.vertexCount;
             console.log(
               `Processed mesh ${meshIndex} from main file: ${result.vertexCount} vertices`
@@ -334,8 +306,15 @@ export const use3DPreview = (model: Model3D | null) => {
               );
 
               if (result.positions.length > 0) {
-                allPositions.push(...result.positions);
-                allIndices.push(...result.indices);
+                // 큰 배열 병합 시 스택 오버플로우 방지를 위한 청크 단위 처리
+                for (let i = 0; i < result.positions.length; i += 10000) {
+                  const chunk = result.positions.slice(i, i + 10000);
+                  allPositions.push(...chunk);
+                }
+                for (let i = 0; i < result.indices.length; i += 10000) {
+                  const chunk = result.indices.slice(i, i + 10000);
+                  allIndices.push(...chunk);
+                }
                 currentVertexOffset += result.vertexCount;
                 console.log(
                   `Processed mesh ${meshIndex} from ${objectFileName}: ${result.vertexCount} vertices`
@@ -400,8 +379,15 @@ export const use3DPreview = (model: Model3D | null) => {
                   );
 
                   if (result.positions.length > 0) {
-                    allPositions.push(...result.positions);
-                    allIndices.push(...result.indices);
+                    // 큰 배열 병합 시 스택 오버플로우 방지를 위한 청크 단위 처리
+                    for (let i = 0; i < result.positions.length; i += 10000) {
+                      const chunk = result.positions.slice(i, i + 10000);
+                      allPositions.push(...chunk);
+                    }
+                    for (let i = 0; i < result.indices.length; i += 10000) {
+                      const chunk = result.indices.slice(i, i + 10000);
+                      allIndices.push(...chunk);
+                    }
                     currentVertexOffset += result.vertexCount;
                     console.log(
                       `Processed mesh ${meshIndex} from ${fileName}: ${result.vertexCount} vertices`
@@ -456,11 +442,19 @@ export const use3DPreview = (model: Model3D | null) => {
           throw new Error("생성된 지오메트리가 유효하지 않습니다.");
         }
 
+        // 설정 추출 완료 대기 및 결과 처리
+        const extractedSettings = await settingsPromise;
+        
+        // 지오메트리 처리 결과와 설정을 함께 반환하기 위해 geometry에 설정 첨부
+        (geometry as any).extractedSettings = extractedSettings;
+
         console.log(
           `3MF successfully parsed: ${allPositions.length / 3} vertices, ${
             allIndices.length / 3
           } triangles`
         );
+        console.log("3MF settings extracted:", extractedSettings);
+        
         return geometry;
       } catch (error) {
         console.error("3MF parsing failed:", error);
@@ -543,6 +537,188 @@ export const use3DPreview = (model: Model3D | null) => {
       }
 
       return geometry;
+    },
+    []
+  );
+
+  // 3MF 설정 정보 추출 함수
+  const extract3MFSettings = useCallback(
+    async (zip: JSZip): Promise<Model3MFSettings> => {
+      const settings: Model3MFSettings = {};
+
+      try {
+        // 1. 메타데이터에서 프로젝트 설정 추출
+        const projectSettingsFile = zip.file("Metadata/project_settings.config");
+        if (projectSettingsFile) {
+          const content = await projectSettingsFile.async("text");
+          console.log("Project settings found:", content.substring(0, 200));
+
+          // 설정 파싱 (INI 형식으로 가정)
+          const projectSettings = parseConfigFile(content);
+
+          settings.printSettings = {
+            layerHeight:
+              parseFloat(projectSettings.layer_height) || undefined,
+            infill: parseInt(projectSettings.fill_density) || undefined,
+            speed: {
+              print: parseFloat(projectSettings.outer_wall_speed) || undefined,
+              travel: parseFloat(projectSettings.travel_speed) || undefined,
+              first_layer:
+                parseFloat(projectSettings.initial_layer_speed) || undefined,
+            },
+            support: {
+              enabled:
+                projectSettings.enable_support === "1" ||
+                projectSettings.enable_support === "true",
+              type: projectSettings.support_type || undefined,
+              angle: parseFloat(projectSettings.support_threshold_angle) || undefined,
+            },
+            retraction: {
+              enabled:
+                projectSettings.retraction_enable === "1" ||
+                projectSettings.retraction_enable === "true",
+              distance: parseFloat(projectSettings.retraction_length) || undefined,
+              speed: parseFloat(projectSettings.retraction_speed) || undefined,
+            },
+          };
+        }
+
+        // 2. 모델 설정에서 재료 정보 추출
+        const modelSettingsFile = zip.file("Metadata/model_settings.config");
+        if (modelSettingsFile) {
+          const content = await modelSettingsFile.async("text");
+          console.log("Model settings found:", content.substring(0, 200));
+
+          const modelSettings = parseConfigFile(content);
+
+          settings.filament = {
+            type: modelSettings.filament_type || undefined,
+            brand: modelSettings.filament_brand || undefined,
+            color: modelSettings.filament_colour || undefined,
+            diameter: parseFloat(modelSettings.filament_diameter) || undefined,
+            temperature: {
+              nozzle: parseInt(modelSettings.nozzle_temperature) || undefined,
+              bed: parseInt(modelSettings.bed_temperature) || undefined,
+            },
+          };
+
+          settings.bambuSettings = {
+            ams: {
+              enabled:
+                modelSettings.ams_enable === "1" ||
+                modelSettings.ams_enable === "true",
+              slot: parseInt(modelSettings.ams_slot) || undefined,
+            },
+            timelapse: modelSettings.timelapse_type !== "0",
+            flowCalibration: modelSettings.flow_calibration === "1",
+            adaptiveLayers: modelSettings.adaptive_layer_height === "1",
+          };
+        }
+
+        // 3. 슬라이스 정보에서 예상 시간/재료 사용량 추출
+        const sliceInfoFile = zip.file("Metadata/slice_info.config");
+        if (sliceInfoFile) {
+          const content = await sliceInfoFile.async("text");
+          console.log("Slice info found:", content.substring(0, 200));
+
+          const sliceInfo = parseConfigFile(content);
+
+          settings.metadata = {
+            totalTime: parseFloat(sliceInfo.total_time) || undefined,
+            filamentUsed: parseFloat(sliceInfo.total_filament_used) || undefined,
+            filamentWeight: parseFloat(sliceInfo.total_weight) || undefined,
+          };
+        }
+
+        // 4. plate_1.json에서 추가 메타데이터 추출
+        const plateInfoFile = zip.file("Metadata/plate_1.json");
+        if (plateInfoFile) {
+          const content = await plateInfoFile.async("text");
+          try {
+            const plateData = JSON.parse(content);
+            console.log("Plate info found:", plateData);
+
+            if (plateData.printer) {
+              settings.printer = {
+                name: plateData.printer.name || undefined,
+                model: plateData.printer.model || undefined,
+                buildPlate: {
+                  width: plateData.printer.build_plate?.width || 256,
+                  height: plateData.printer.build_plate?.height || 256,
+                  depth: plateData.printer.build_plate?.depth || 256,
+                },
+              };
+            }
+
+            // 메타데이터 업데이트
+            if (!settings.metadata) settings.metadata = {};
+            settings.metadata.application = plateData.application || "Unknown";
+            settings.metadata.version = plateData.version || undefined;
+            settings.metadata.creationDate = plateData.creation_date || undefined;
+          } catch (error) {
+            console.warn("Failed to parse plate JSON:", error);
+          }
+        }
+
+        // 5. 메인 모델 파일에서 애플리케이션 정보 추출
+        const mainModelFile = zip.file("3D/3dmodel.model");
+        if (mainModelFile) {
+          const content = await mainModelFile.async("text");
+          const parser = new DOMParser();
+          const xmlDoc = parser.parseFromString(content, "text/xml");
+
+          // 메타데이터 추출
+          const metadataElements = xmlDoc.getElementsByTagName("metadata");
+          for (let i = 0; i < metadataElements.length; i++) {
+            const metadata = metadataElements[i];
+            const name = metadata.getAttribute("name");
+            const value = metadata.textContent;
+
+            if (!settings.metadata) settings.metadata = {};
+
+            switch (name) {
+              case "Application":
+                settings.metadata.application = value || undefined;
+                break;
+              case "BambuStudio:3mfVersion":
+                settings.metadata.version = value || undefined;
+                break;
+              case "CreationDate":
+                settings.metadata.creationDate = value || undefined;
+                break;
+            }
+          }
+        }
+
+        console.log("Extracted 3MF settings:", settings);
+        return settings;
+      } catch (error) {
+        console.warn("Failed to extract 3MF settings:", error);
+        return settings;
+      }
+    },
+    []
+  );
+
+  // 설정 파일 파싱 유틸리티 (INI 형식)
+  const parseConfigFile = useCallback(
+    (content: string): Record<string, string> => {
+      const result: Record<string, string> = {};
+      const lines = content.split("\n");
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed && !trimmed.startsWith("#") && !trimmed.startsWith("[")) {
+          const equalIndex = trimmed.indexOf("=");
+          if (equalIndex > 0) {
+            const key = trimmed.substring(0, equalIndex).trim();
+            const value = trimmed.substring(equalIndex + 1).trim();
+            result[key] = value;
+          }
+        }
+      }
+
+      return result;
     },
     []
   );
@@ -651,12 +827,15 @@ export const use3DPreview = (model: Model3D | null) => {
           console.log("Computed vertex normals for geometry");
         }
 
+        // 파일 형식별 좌표계 정규화 적용 (기울어짐 방지)
+        geometry = normalizeCoordinateSystem(geometry, extension);
+
         // Remove previous model
         if (modelMeshRef.current) {
           sceneRef.current.remove(modelMeshRef.current);
         }
 
-        // Center geometry
+        // Center geometry with proper floor alignment
         geometry.computeBoundingBox();
         const boundingBox = geometry.boundingBox!;
 
@@ -673,8 +852,33 @@ export const use3DPreview = (model: Model3D | null) => {
           throw new Error("3D 모델의 크기를 계산할 수 없습니다.");
         }
 
+        // 개선된 센터링 로직: X, Z는 중앙에, Y는 바닥에 맞춤
         const center = boundingBox.getCenter(new THREE.Vector3());
-        geometry.translate(-center.x, -center.y, -center.z);
+        const size = boundingBox.getSize(new THREE.Vector3());
+        
+        console.log("Model bounds before centering:", {
+          min: boundingBox.min,
+          max: boundingBox.max,
+          center: center,
+          size: size
+        });
+
+        // X, Z축은 중앙 정렬, Y축은 바닥(최소값)을 0에 맞춤
+        geometry.translate(
+          -center.x,           // X축 중앙 정렬
+          -boundingBox.min.y,  // Y축 바닥을 0에 맞춤 (기울어짐 방지)
+          -center.z            // Z축 중앙 정렬
+        );
+
+        // 변환 후 바운딩 박스 재계산
+        geometry.computeBoundingBox();
+        const adjustedBounds = geometry.boundingBox!;
+        
+        console.log("Model bounds after centering:", {
+          min: adjustedBounds.min,
+          max: adjustedBounds.max,
+          size: adjustedBounds.getSize(new THREE.Vector3())
+        });
 
         // 확장된 파일 형식별 색상
         const materialColor =
@@ -709,8 +913,8 @@ export const use3DPreview = (model: Model3D | null) => {
         sceneRef.current.add(group);
 
         // Auto-fit camera with improved calculation
-        const size = boundingBox.getSize(new THREE.Vector3());
-        const maxDim = Math.max(size.x, size.y, size.z);
+        const modelSize = adjustedBounds.getSize(new THREE.Vector3());
+        const maxDim = Math.max(modelSize.x, modelSize.y, modelSize.z);
 
         // 모델 크기 검증 개선
         if (maxDim < 0.01) {
@@ -737,6 +941,13 @@ export const use3DPreview = (model: Model3D | null) => {
         cameraRef.current!.lookAt(0, 0, 0);
         controlsRef.current!.update();
 
+        // 3MF 파일에서 추출된 설정 처리
+        if (extension === "3mf" && (geometry as any).extractedSettings) {
+          const extractedSettings = (geometry as any).extractedSettings as Model3MFSettings;
+          setExtracted3MFSettings(extractedSettings);
+          console.log("3MF settings saved to store:", extractedSettings);
+        }
+
         console.log(
           `Model loaded: ${modelFile.name}, vertices: ${
             geometry.attributes.position.count
@@ -754,10 +965,134 @@ export const use3DPreview = (model: Model3D | null) => {
     [load3MFModel, loadOBJModel, loadPLYModel, loadGLTFModel]
   );
 
-  const autoOrient = useCallback(() => {
-    if (!modelMeshRef.current) return;
+  const resetView = useCallback(() => {
+    if (isServer || !cameraRef.current || !controlsRef.current) return;
 
-    // 그룹 내 첫 번째 메시 찾기 - 타입 검사 우회
+    cameraRef.current.position.set(50, 50, 50);
+    cameraRef.current.lookAt(0, 0, 0);
+    controlsRef.current.reset();
+  }, []);
+
+  // 좌표계 정규화 함수 - 파일 형식별 좌표계 차이 보정
+  const normalizeCoordinateSystem = useCallback((geometry: THREE.BufferGeometry, fileExtension: string) => {
+    console.log(`Normalizing coordinate system for ${fileExtension.toUpperCase()} file`);
+    
+    // 원본 바운딩 박스 계산
+    geometry.computeBoundingBox();
+    const originalBounds = geometry.boundingBox!;
+    
+    console.log("Original bounds:", {
+      min: originalBounds.min,
+      max: originalBounds.max,
+      size: originalBounds.getSize(new THREE.Vector3())
+    });
+
+    // 파일 형식별 좌표계 변환
+    switch (fileExtension) {
+      case "3mf":
+      case "stl": {
+        // STL/3MF: 대부분 밀리미터 단위, Y-up 또는 Z-up
+        // 모델이 XY 평면에 평평하게 누워있는지 확인
+        const size = originalBounds.getSize(new THREE.Vector3());
+        
+        // Z축이 매우 작으면 모델이 평평하게 누워있음 (Z-up → Y-up 변환 필요)
+        if (size.z < size.y * 0.1 && size.z < size.x * 0.1) {
+          console.log("Detected flat model on XY plane, applying Z-up to Y-up conversion");
+          geometry.rotateX(-Math.PI / 2); // Z-up을 Y-up으로 변환
+        }
+        break;
+      }
+      
+      case "obj": {
+        // OBJ: 종종 다른 좌표계 사용, 스케일도 다를 수 있음
+        const size = originalBounds.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        
+        // OBJ 파일이 매우 큰 경우 스케일 조정 (예: 미터 단위 → 밀리미터)
+        if (maxDim > 1000) {
+          console.log("Large OBJ model detected, scaling down");
+          geometry.scale(0.001, 0.001, 0.001); // 미터를 밀리미터로
+        } else if (maxDim < 1) {
+          console.log("Small OBJ model detected, scaling up");
+          geometry.scale(1000, 1000, 1000); // 미터를 밀리미터로
+        }
+        break;
+      }
+      
+      case "ply": {
+        // PLY: 스캔 데이터에서 자주 사용, 좌표계가 다를 수 있음
+        const size = originalBounds.getSize(new THREE.Vector3());
+        
+        // PLY는 종종 다른 방향으로 스캔됨
+        if (size.y < size.z * 0.5) {
+          console.log("PLY model appears to be rotated, applying correction");
+          geometry.rotateX(Math.PI / 2);
+        }
+        break;
+      }
+      
+      case "gltf":
+      case "glb": {
+        // GLTF/GLB: 표준 Y-up 좌표계, 일반적으로 변환 불필요
+        console.log("GLTF/GLB uses standard Y-up, no coordinate conversion needed");
+        break;
+      }
+    }
+
+    // 변환 후 바운딩 박스 재계산
+    geometry.computeBoundingBox();
+    const normalizedBounds = geometry.boundingBox!;
+    
+    console.log("Normalized bounds:", {
+      min: normalizedBounds.min,
+      max: normalizedBounds.max,
+      size: normalizedBounds.getSize(new THREE.Vector3())
+    });
+
+    return geometry;
+  }, []);
+
+  // 3D 프린팅 적합성 점수 계산 함수
+  const calculatePrintabilityScore = useCallback(
+    (size: THREE.Vector3, box: THREE.Box3): number => {
+      let score = 0;
+
+      // 1. 높이 최소화 (Z축 높이가 낮을수록 좋음) - 40%
+      const heightScore = Math.max(
+        0,
+        100 - (size.z / Math.max(size.x, size.y)) * 50
+      );
+      score += heightScore * 0.4;
+
+      // 2. 베이스 면적 최대화 (XY 평면 면적이 클수록 안정적) - 30%
+      const baseArea = size.x * size.y;
+      const maxPossibleArea = Math.max(
+        size.x * size.z,
+        size.y * size.z,
+        size.x * size.y
+      );
+      const baseScore = (baseArea / maxPossibleArea) * 100;
+      score += baseScore * 0.3;
+
+      // 3. 종횡비 최적화 (너무 높거나 가늘지 않게) - 20%
+      const aspectRatio = size.z / Math.sqrt(size.x * size.y);
+      const aspectScore = Math.max(0, 100 - Math.abs(aspectRatio - 1) * 30);
+      score += aspectScore * 0.2;
+
+      // 4. 바닥면 평탄도 (Y=0 근처에 많은 점들이 있을수록 좋음) - 10%
+      const bottomFlatnessScore = box.min.y > -0.1 ? 100 : 50; // 바닥면이 평평한지 간단 체크
+      score += bottomFlatnessScore * 0.1;
+
+      return score;
+    },
+    []
+  );
+
+  // 3D 프린팅을 위한 정교한 자동 방향 설정 함수
+  const autoOrient = useCallback(() => {
+    if (isServer || !modelMeshRef.current) return;
+
+    // 그룹 내 첫 번째 메시 찾기
     const meshes: THREE.Mesh[] = [];
     modelMeshRef.current.traverse((child) => {
       if (child instanceof THREE.Mesh) {
@@ -768,31 +1103,127 @@ export const use3DPreview = (model: Model3D | null) => {
     const firstMesh = meshes[0];
     if (!firstMesh) return;
 
-    // Simple auto-orientation: place largest face on build plate
     const geometry = firstMesh.geometry as THREE.BufferGeometry;
     if (!geometry) return;
 
-    geometry.computeBoundingBox();
+    // 현재 회전 상태 저장
+    const originalRotation = modelMeshRef.current.rotation.clone();
 
-    const boundingBox = geometry.boundingBox;
-    if (!boundingBox) return;
+    try {
+      // 지오메트리 바운딩 박스 재계산
+      geometry.computeBoundingBox();
+      const boundingBox = geometry.boundingBox;
+      if (!boundingBox) return;
 
-    const size = boundingBox.getSize(new THREE.Vector3());
+      console.log("Starting auto-orientation analysis...");
 
-    // Rotate to place largest dimension on Z-axis
-    if (size.x > size.y && size.x > size.z) {
-      modelMeshRef.current.rotation.z = Math.PI / 2;
-    } else if (size.y > size.z) {
-      modelMeshRef.current.rotation.x = Math.PI / 2;
+      // 최적 방향을 찾기 위한 분석
+      const orientations = [
+        { x: 0, y: 0, z: 0, name: "원본" },
+        { x: Math.PI / 2, y: 0, z: 0, name: "X축 90도" },
+        { x: -Math.PI / 2, y: 0, z: 0, name: "X축 -90도" },
+        { x: 0, y: Math.PI / 2, z: 0, name: "Y축 90도" },
+        { x: 0, y: -Math.PI / 2, z: 0, name: "Y축 -90도" },
+        { x: 0, y: 0, z: Math.PI / 2, name: "Z축 90도" },
+        { x: 0, y: 0, z: -Math.PI / 2, name: "Z축 -90도" },
+        { x: Math.PI, y: 0, z: 0, name: "X축 180도" },
+        { x: 0, y: Math.PI, z: 0, name: "Y축 180도" },
+      ];
+
+      let bestOrientation = orientations[0];
+      let bestScore = -Infinity;
+
+      // 각 방향에 대해 평가
+      for (const orientation of orientations) {
+        // 임시로 회전 적용
+        modelMeshRef.current.rotation.set(
+          orientation.x,
+          orientation.y,
+          orientation.z
+        );
+
+        // 회전된 바운딩 박스 계산
+        const box = new THREE.Box3().setFromObject(modelMeshRef.current);
+        const size = box.getSize(new THREE.Vector3());
+
+        // 3D 프린팅 최적화 점수 계산
+        const score = calculatePrintabilityScore(size, box);
+
+        console.log(
+          `${orientation.name}: 크기(${size.x.toFixed(1)}, ${size.y.toFixed(
+            1
+          )}, ${size.z.toFixed(1)}), 점수: ${score.toFixed(2)}`
+        );
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestOrientation = orientation;
+        }
+      }
+
+      // 최적 방향 적용
+      modelMeshRef.current.rotation.set(
+        bestOrientation.x,
+        bestOrientation.y,
+        bestOrientation.z
+      );
+
+      // 회전 후 바닥에 맞춤
+      const finalBox = new THREE.Box3().setFromObject(modelMeshRef.current);
+      const offset = -finalBox.min.y; // 바닥(Y=0)에 맞춤
+      modelMeshRef.current.position.y = offset;
+
+      console.log(
+        `최적 방향 선택: ${bestOrientation.name} (점수: ${bestScore.toFixed(
+          2
+        )})`
+      );
+    } catch (error) {
+      console.error("Auto-orientation failed:", error);
+      // 오류 발생 시 원래 회전 상태로 복원
+      modelMeshRef.current.rotation.copy(originalRotation);
     }
+  }, [calculatePrintabilityScore]);
+
+  // 모델 회전 리셋 함수
+  const resetOrientation = useCallback(() => {
+    if (isServer || !modelMeshRef.current) return;
+
+    modelMeshRef.current.rotation.set(0, 0, 0);
+    modelMeshRef.current.position.set(0, 0, 0);
+
+    // 바닥에 맞춤
+    const box = new THREE.Box3().setFromObject(modelMeshRef.current);
+    const offset = -box.min.y;
+    modelMeshRef.current.position.y = offset;
+
+    console.log("모델 방향이 초기 상태로 리셋되었습니다.");
   }, []);
 
-  const resetView = useCallback(() => {
-    if (!cameraRef.current || !controlsRef.current) return;
+  // 수동 회전 함수들
+  const rotateModel = useCallback((axis: "x" | "y" | "z", degrees: number) => {
+    if (isServer || !modelMeshRef.current) return;
 
-    cameraRef.current.position.set(50, 50, 50);
-    cameraRef.current.lookAt(0, 0, 0);
-    controlsRef.current.reset();
+    const radians = (degrees * Math.PI) / 180;
+
+    switch (axis) {
+      case "x":
+        modelMeshRef.current.rotation.x += radians;
+        break;
+      case "y":
+        modelMeshRef.current.rotation.y += radians;
+        break;
+      case "z":
+        modelMeshRef.current.rotation.z += radians;
+        break;
+    }
+
+    // 회전 후 바닥에 맞춤
+    const box = new THREE.Box3().setFromObject(modelMeshRef.current);
+    const offset = -box.min.y;
+    modelMeshRef.current.position.y = offset;
+
+    console.log(`모델을 ${axis}축으로 ${degrees}도 회전했습니다.`);
   }, []);
 
   // 메모리 정리 함수
@@ -854,5 +1285,7 @@ export const use3DPreview = (model: Model3D | null) => {
     error,
     autoOrient,
     resetView,
+    resetOrientation,
+    rotateModel,
   };
 };

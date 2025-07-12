@@ -1,25 +1,34 @@
-import bambuLabSettings from '~/shared/config/bambulab-settings.json';
-import { PrintSettings, FilamentSlot } from '~/entities/settings/types';
+import bambuLabSettings from "~/shared/config/bambulab-settings.json";
+import { PrintSettings, FilamentSlot } from "~/entities/settings/types";
 
 export class AMSManager {
   private filamentSlots: FilamentSlot[];
 
   constructor() {
-    this.filamentSlots = bambuLabSettings.bambuLabProfiles.amsSettings.filamentSlots.map(slot => ({
-      ...slot,
-      material: {
-        type: slot.material as any,
-        density: bambuLabSettings.bambuLabProfiles.materialProfiles[slot.material].density,
-        nozzleTemp: bambuLabSettings.bambuLabProfiles.materialProfiles[slot.material].printTemp,
-        bedTemp: bambuLabSettings.bambuLabProfiles.materialProfiles[slot.material].bedTemp,
-        properties: {
-          strength: this.getMaterialStrength(slot.material),
-          flexibility: this.getMaterialFlexibility(slot.material),
-          durability: this.getMaterialDurability(slot.material),
-          printability: this.getMaterialPrintability(slot.material)
-        }
-      }
-    }));
+    this.filamentSlots =
+      bambuLabSettings.bambuLabProfiles.amsSettings.filamentSlots.map(
+        (slot) => ({
+          ...slot,
+          material: {
+            type: slot.material as any,
+            density:
+              bambuLabSettings.bambuLabProfiles.materialProfiles[slot.material]
+                .density,
+            nozzleTemp:
+              bambuLabSettings.bambuLabProfiles.materialProfiles[slot.material]
+                .printTemp,
+            bedTemp:
+              bambuLabSettings.bambuLabProfiles.materialProfiles[slot.material]
+                .bedTemp,
+            properties: {
+              strength: this.getMaterialStrength(slot.material),
+              flexibility: this.getMaterialFlexibility(slot.material),
+              durability: this.getMaterialDurability(slot.material),
+              printability: this.getMaterialPrintability(slot.material),
+            },
+          },
+        })
+      );
   }
 
   private getMaterialStrength(material: string): number {
@@ -47,13 +56,28 @@ export class AMSManager {
   }
 
   selectOptimalFilament(
-    classification: 'decorative' | 'functional' | 'assembly',
-    complexity: 'low' | 'medium' | 'high'
+    classification: "decorative" | "functional" | "assembly",
+    complexity: "low" | "medium" | "high"
   ): FilamentSlot {
     const preferences = {
-      decorative: { strength: 0.2, flexibility: 0.1, durability: 0.2, printability: 0.5 },
-      functional: { strength: 0.4, flexibility: 0.1, durability: 0.4, printability: 0.1 },
-      assembly: { strength: 0.3, flexibility: 0.2, durability: 0.3, printability: 0.2 }
+      decorative: {
+        strength: 0.2,
+        flexibility: 0.1,
+        durability: 0.2,
+        printability: 0.5,
+      },
+      functional: {
+        strength: 0.4,
+        flexibility: 0.1,
+        durability: 0.4,
+        printability: 0.1,
+      },
+      assembly: {
+        strength: 0.3,
+        flexibility: 0.2,
+        durability: 0.3,
+        printability: 0.2,
+      },
     };
 
     const pref = preferences[classification];
@@ -61,7 +85,7 @@ export class AMSManager {
     let bestScore = 0;
 
     for (const slot of this.filamentSlots) {
-      const score = 
+      const score =
         slot.material.properties.strength * pref.strength +
         slot.material.properties.flexibility * pref.flexibility +
         slot.material.properties.durability * pref.durability +
@@ -77,18 +101,23 @@ export class AMSManager {
   }
 
   calculateFilamentCost(weightGrams: number, material: string): number {
-    const slot = this.filamentSlots.find(s => s.material.type === material);
+    const slot = this.filamentSlots.find((s) => s.material.type === material);
     return slot ? weightGrams * slot.costPerGram : weightGrams * 50; // 기본 PLA 단가
   }
 
   getFilamentBySlot(slotId: number): FilamentSlot | undefined {
-    return this.filamentSlots.find(slot => slot.id === slotId);
+    return this.filamentSlots.find((slot) => slot.id === slotId);
   }
 
   updateFilamentSlot(slotId: number, updates: Partial<FilamentSlot>): void {
-    const slotIndex = this.filamentSlots.findIndex(slot => slot.id === slotId);
+    const slotIndex = this.filamentSlots.findIndex(
+      (slot) => slot.id === slotId
+    );
     if (slotIndex !== -1) {
-      this.filamentSlots[slotIndex] = { ...this.filamentSlots[slotIndex], ...updates };
+      this.filamentSlots[slotIndex] = {
+        ...this.filamentSlots[slotIndex],
+        ...updates,
+      };
     }
   }
 }

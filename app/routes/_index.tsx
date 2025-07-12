@@ -2,6 +2,7 @@ import type { MetaFunction } from "@remix-run/node";
 import { ModelViewer } from "~/widgets/model-viewer/ModelViewer";
 import { SlicerSettings } from "~/widgets/slicer-settings/SlicerSettings";
 import { EstimationCard } from "~/widgets/estimation-card/EstimationCard";
+import { ModelSettings3MF } from "~/widgets/model-settings-3mf/ModelSettings3MF";
 
 export const meta: MetaFunction = () => {
   return [
@@ -58,6 +59,9 @@ export default function Index() {
           <div className="lg:col-span-2 space-y-8">
             {/* 3D Model Viewer */}
             <ModelViewer />
+            
+            {/* 3MF Settings Display */}
+            <ModelSettings3MF />
             
             {/* Slicer Settings */}
             <SlicerSettings />

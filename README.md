@@ -18,6 +18,7 @@
 ## 🛠 기술 스택
 
 ### Frontend
+
 - **Framework**: Remix (React-based 풀스택 프레임워크)
 - **Language**: TypeScript
 - **Styling**: TailwindCSS
@@ -26,6 +27,7 @@
 - **Architecture**: Feature-Sliced Design (FSD)
 
 ### Backend (연동 예정)
+
 - **API**: FastAPI (Python)
 - **Slicer**: Orca Slicer CLI
 - **AI**: SentenceTransformer / Ollama
@@ -58,7 +60,7 @@ app/
 
 ### 사전 요구사항
 
-- Node.js 18+ 
+- Node.js 18+
 - npm 또는 yarn
 
 ### 설치 및 실행
@@ -82,18 +84,22 @@ npm start
 ## 📱 사용 방법
 
 ### 1단계: 모델 업로드
+
 - STL, 3MF, OBJ 파일을 드래그 앤 드롭하거나 클릭하여 업로드
 - 3D 뷰어에서 실시간 모델 프리뷰 확인
 
 ### 2단계: AI 분석 대기
+
 - AI가 모델을 자동 분석하여 용도별 분류
 - 분류 결과에 따른 최적 설정 자동 추천
 
 ### 3단계: 출력 설정 선택
+
 - **추천 설정**: AI 기반 Bambu Lab 스타일 설정 중 선택
 - **사용자 정의**: 고급 사용자를 위한 수동 설정
 
 ### 4단계: 견적 확인
+
 - **프린팅 시간**: 예상 소요 시간
 - **필라멘트 사용량**: 길이(m) 및 무게(g)
 - **예상 비용**: 재료비 + 전력비 포함
@@ -102,16 +108,19 @@ npm start
 ## 🎨 주요 특징
 
 ### AI 기반 스마트 추천
+
 - 모델 형태 분석으로 장식용/기능성/조립체 자동 분류
 - 분류별 최적화된 Bambu Lab 설정 템플릿 적용
 - 복잡도, 서포트 필요성 등을 고려한 다중 추천
 
 ### Bambu Lab 호환 설정
+
 - Speed Mode (Silent/Standard/Sport/Ludicrous)
 - AMS 필라멘트 관리 시스템 고려
 - 냉각 및 전력 설정 최적화
 
 ### 정확한 비용 계산
+
 - 필라멘트 종류별 단가 데이터베이스
 - 온도 기반 재료 자동 추정
 - 전력비 및 마진 포함 실제 비용
@@ -121,7 +130,7 @@ npm start
 ### 새로운 기능 추가 (FSD 가이드라인)
 
 1. **Entity 레이어**: 새로운 비즈니스 데이터 구조 정의
-2. **Feature 레이어**: 비즈니스 로직 및 훅 구현  
+2. **Feature 레이어**: 비즈니스 로직 및 훅 구현
 3. **Widget 레이어**: 복합 UI 컴포넌트 개발
 4. **Page 레이어**: 라우트별 페이지 구성
 

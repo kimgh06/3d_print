@@ -1,5 +1,5 @@
-import { PrintSettings } from '~/entities/settings/types';
-import { Model3D } from '~/entities/model/types';
+import { PrintSettings } from "~/entities/settings/types";
+import { Model3D } from "~/entities/model/types";
 
 export interface ProjectSettings {
   version: string;
@@ -79,29 +79,31 @@ export class SettingsManager {
     estimation: any
   ): ProjectSettings {
     const now = new Date().toISOString();
-    
+
     return {
       version: "1.0.0",
       created: now,
       modified: now,
       model: {
         name: model.name,
-        checksum: this.generateChecksum(model.name + model.size)
+        checksum: this.generateChecksum(model.name + model.size),
       },
       printSettings,
       slicerSettings: {
         software: "3D Print Estimator",
         version: "1.0.0",
-        profile: printSettings.name
+        profile: printSettings.name,
       },
       materials: {
-        primary: this.getMaterialFromTemperature(printSettings.nozzleTemperature)
+        primary: this.getMaterialFromTemperature(
+          printSettings.nozzleTemperature
+        ),
       },
       metadata: {
         estimatedTime: estimation?.printTime || 0,
         estimatedCost: estimation?.cost || 0,
-        filamentUsage: estimation?.filamentUsage || { length: 0, weight: 0 }
-      }
+        filamentUsage: estimation?.filamentUsage || { length: 0, weight: 0 },
+      },
     };
   }
 
@@ -110,15 +112,15 @@ export class SettingsManager {
     try {
       // 실제로는 3MF ZIP 파일을 파싱해야 하지만, 여기서는 JSON으로 시뮬레이션
       const text = await file.text();
-      
+
       // XML 파싱 시뮬레이션 (실제로는 DOMParser 사용)
-      if (text.includes('3D Print Estimator')) {
+      if (text.includes("3D Print Estimator")) {
         return this.parseProjectXML(text);
       }
-      
+
       return null;
     } catch (error) {
-      console.error('Failed to import settings:', error);
+      console.error("Failed to import settings:", error);
       return null;
     }
   }
@@ -127,48 +129,48 @@ export class SettingsManager {
     // 간단한 XML 파싱 시뮬레이션
     const extractValue = (tag: string): string => {
       const match = xml.match(new RegExp(`<${tag}>(.*?)</${tag}>`));
-      return match ? match[1] : '';
+      return match ? match[1] : "";
     };
 
     return {
-      version: extractValue('Version') || '1.0.0',
-      created: extractValue('Created') || new Date().toISOString(),
+      version: extractValue("Version") || "1.0.0",
+      created: extractValue("Created") || new Date().toISOString(),
       modified: new Date().toISOString(),
       model: {
-        name: 'imported_model.stl',
-        checksum: 'imported'
+        name: "imported_model.stl",
+        checksum: "imported",
       },
       printSettings: {
-        id: 'imported',
-        name: '불러온 설정',
-        layerHeight: parseFloat(extractValue('layerHeight')) || 0.2,
-        wallCount: parseInt(extractValue('wallCount')) || 3,
-        infillDensity: parseInt(extractValue('infillDensity')) || 20,
-        printSpeed: parseInt(extractValue('printSpeed')) || 80,
-        nozzleTemperature: parseInt(extractValue('nozzleTemperature')) || 210,
-        bedTemperature: parseInt(extractValue('bedTemperature')) || 60,
-        supportEnabled: extractValue('supportEnabled') === 'true',
+        id: "imported",
+        name: "불러온 설정",
+        layerHeight: parseFloat(extractValue("layerHeight")) || 0.2,
+        wallCount: parseInt(extractValue("wallCount")) || 3,
+        infillDensity: parseInt(extractValue("infillDensity")) || 20,
+        printSpeed: parseInt(extractValue("printSpeed")) || 80,
+        nozzleTemperature: parseInt(extractValue("nozzleTemperature")) || 210,
+        bedTemperature: parseInt(extractValue("bedTemperature")) || 60,
+        supportEnabled: extractValue("supportEnabled") === "true",
         rafts: false,
         brim: false,
-        quality: extractValue('quality') as any || 'standard',
-        purpose: extractValue('purpose') as any || 'functional'
+        quality: (extractValue("quality") as any) || "standard",
+        purpose: (extractValue("purpose") as any) || "functional",
       },
       slicerSettings: {
-        software: '3D Print Estimator',
-        version: '1.0.0',
-        profile: '불러온 프로필'
+        software: "3D Print Estimator",
+        version: "1.0.0",
+        profile: "불러온 프로필",
       },
       materials: {
-        primary: 'PLA'
+        primary: "PLA",
       },
       metadata: {
-        estimatedTime: parseInt(extractValue('printTime')) || 0,
-        estimatedCost: parseInt(extractValue('cost')) || 0,
+        estimatedTime: parseInt(extractValue("printTime")) || 0,
+        estimatedCost: parseInt(extractValue("cost")) || 0,
         filamentUsage: {
-          length: parseFloat(extractValue('filamentLength')) || 0,
-          weight: parseFloat(extractValue('filamentWeight')) || 0
-        }
-      }
+          length: parseFloat(extractValue("filamentLength")) || 0,
+          weight: parseFloat(extractValue("filamentWeight")) || 0,
+        },
+      },
     };
   }
 
@@ -177,26 +179,29 @@ export class SettingsManager {
     let hash = 0;
     for (let i = 0; i < data.length; i++) {
       const char = data.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // 32bit 정수로 변환
     }
     return Math.abs(hash).toString(16);
   }
 
   private getMaterialFromTemperature(temperature: number): string {
-    if (temperature >= 250) return 'ABS';
-    if (temperature >= 230) return 'PETG';
-    if (temperature >= 210) return 'PLA';
-    return 'PLA';
+    if (temperature >= 250) return "ABS";
+    if (temperature >= 230) return "PETG";
+    if (temperature >= 210) return "PLA";
+    return "PLA";
   }
 
   // 설정을 파일로 다운로드
-  downloadSettings(settings: ProjectSettings, filename: string = 'settings.json'): void {
+  downloadSettings(
+    settings: ProjectSettings,
+    filename: string = "settings.json"
+  ): void {
     const blob = new Blob([JSON.stringify(settings, null, 2)], {
-      type: 'application/json'
+      type: "application/json",
     });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = filename;
     document.body.appendChild(a);

@@ -1,8 +1,15 @@
-export type FilamentMaterial = 'PLA' | 'ABS' | 'PETG' | 'TPU' | 'PLA+' | 'WOOD' | 'CARBON_FIBER';
+export type FilamentMaterial =
+  | "PLA"
+  | "ABS"
+  | "PETG"
+  | "TPU"
+  | "PLA+"
+  | "WOOD"
+  | "CARBON_FIBER";
 
-export type PrintQuality = 'ultra-fine' | 'fine' | 'standard' | 'draft';
+export type PrintQuality = "ultra-fine" | "fine" | "standard" | "draft";
 
-export type PrintPurpose = 'decorative' | 'functional' | 'assembly';
+export type PrintPurpose = "decorative" | "functional" | "assembly";
 
 export interface PrintSettings {
   id: string;

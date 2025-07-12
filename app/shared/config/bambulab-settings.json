@@ -11,7 +11,7 @@
         "description": "조용한 출력, 최고 품질"
       },
       "standard": {
-        "name": "Standard Mode", 
+        "name": "Standard Mode",
         "printSpeed": 80,
         "travelSpeed": 150,
         "acceleration": 1000,
@@ -57,7 +57,7 @@
         {
           "id": 2,
           "material": "ABS",
-          "color": "#0000FF", 
+          "color": "#0000FF",
           "brand": "Bambu Lab",
           "costPerGram": 80,
           "diameter": 1.75,
@@ -70,7 +70,7 @@
           "id": 3,
           "material": "PETG",
           "color": "#00FF00",
-          "brand": "Bambu Lab", 
+          "brand": "Bambu Lab",
           "costPerGram": 75,
           "diameter": 1.75,
           "temperature": {

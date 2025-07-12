@@ -1,25 +1,25 @@
-import { useEstimationStore } from '~/shared/lib/store';
-import { useEstimation } from '~/features/estimate/useEstimation';
-import { settingsManager } from '~/features/settings/SettingsManager';
-import { useRef } from 'react';
+import { useEstimationStore } from "~/shared/lib/store";
+import { useEstimation } from "~/features/estimate/useEstimation";
+import { settingsManager } from "~/features/settings/SettingsManager";
+import { useRef } from "react";
 
 export const EstimationCard = () => {
-  const { 
-    currentModel, 
-    estimation, 
-    printSettings, 
-    isSlicing, 
+  const {
+    currentModel,
+    estimation,
+    printSettings,
+    isSlicing,
     error,
     setPrintSettings,
-    setSuggestedSettings
+    setSuggestedSettings,
   } = useEstimationStore();
-  
+
   const { formatPrintTime, formatFilamentUsage } = useEstimation();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleExportSettings = () => {
     if (!currentModel || !printSettings || !estimation) {
-      alert('저장할 설정이 없습니다.');
+      alert("저장할 설정이 없습니다.");
       return;
     }
 
@@ -29,12 +29,15 @@ export const EstimationCard = () => {
         printSettings,
         estimation
       );
-      
-      const filename = `${currentModel.name.replace(/\.[^/.]+$/, "")}_settings.json`;
+
+      const filename = `${currentModel.name.replace(
+        /\.[^/.]+$/,
+        ""
+      )}_settings.json`;
       settingsManager.downloadSettings(projectSettings, filename);
     } catch (error) {
-      console.error('Failed to export settings:', error);
-      alert('설정 저장에 실패했습니다.');
+      console.error("Failed to export settings:", error);
+      alert("설정 저장에 실패했습니다.");
     }
   };
 
@@ -42,7 +45,9 @@ export const EstimationCard = () => {
     fileInputRef.current?.click();
   };
 
-  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileImport = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -51,17 +56,17 @@ export const EstimationCard = () => {
       if (projectSettings) {
         setPrintSettings(projectSettings.printSettings);
         setSuggestedSettings([projectSettings.printSettings]);
-        alert('설정을 성공적으로 불러왔습니다.');
+        alert("설정을 성공적으로 불러왔습니다.");
       } else {
-        alert('유효하지 않은 설정 파일입니다.');
+        alert("유효하지 않은 설정 파일입니다.");
       }
     } catch (error) {
-      console.error('Failed to import settings:', error);
-      alert('설정 불러오기에 실패했습니다.');
+      console.error("Failed to import settings:", error);
+      alert("설정 불러오기에 실패했습니다.");
     }
-    
+
     // Reset file input
-    event.target.value = '';
+    event.target.value = "";
   };
 
   if (!currentModel) {
@@ -122,7 +127,9 @@ export const EstimationCard = () => {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
             <span className="text-gray-500">파일 형식:</span>
-            <span className="ml-2 font-medium uppercase">{currentModel.type}</span>
+            <span className="ml-2 font-medium uppercase">
+              {currentModel.type}
+            </span>
           </div>
           <div>
             <span className="text-gray-500">파일 크기:</span>
@@ -134,9 +141,9 @@ export const EstimationCard = () => {
             <div className="col-span-2">
               <span className="text-gray-500">모델 분류:</span>
               <span className="ml-2 inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
-                {currentModel.classification === 'decorative' && '장식용'}
-                {currentModel.classification === 'functional' && '기능성'}
-                {currentModel.classification === 'assembly' && '조립체'}
+                {currentModel.classification === "decorative" && "장식용"}
+                {currentModel.classification === "functional" && "기능성"}
+                {currentModel.classification === "assembly" && "조립체"}
               </span>
             </div>
           )}
@@ -146,31 +153,45 @@ export const EstimationCard = () => {
       {/* Print Settings */}
       {printSettings && (
         <div className="p-6 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">출력 설정</h3>
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">
+            출력 설정
+          </h3>
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
               <span className="text-gray-500">레이어 높이:</span>
-              <span className="ml-2 font-medium">{printSettings.layerHeight}mm</span>
+              <span className="ml-2 font-medium">
+                {printSettings.layerHeight}mm
+              </span>
             </div>
             <div>
               <span className="text-gray-500">벽 개수:</span>
-              <span className="ml-2 font-medium">{printSettings.wallCount}개</span>
+              <span className="ml-2 font-medium">
+                {printSettings.wallCount}개
+              </span>
             </div>
             <div>
               <span className="text-gray-500">내부 밀도:</span>
-              <span className="ml-2 font-medium">{printSettings.infillDensity}%</span>
+              <span className="ml-2 font-medium">
+                {printSettings.infillDensity}%
+              </span>
             </div>
             <div>
               <span className="text-gray-500">출력 속도:</span>
-              <span className="ml-2 font-medium">{printSettings.printSpeed}mm/s</span>
+              <span className="ml-2 font-medium">
+                {printSettings.printSpeed}mm/s
+              </span>
             </div>
             <div>
               <span className="text-gray-500">노즐 온도:</span>
-              <span className="ml-2 font-medium">{printSettings.nozzleTemperature}°C</span>
+              <span className="ml-2 font-medium">
+                {printSettings.nozzleTemperature}°C
+              </span>
             </div>
             <div>
               <span className="text-gray-500">베드 온도:</span>
-              <span className="ml-2 font-medium">{printSettings.bedTemperature}°C</span>
+              <span className="ml-2 font-medium">
+                {printSettings.bedTemperature}°C
+              </span>
             </div>
           </div>
         </div>
@@ -179,37 +200,49 @@ export const EstimationCard = () => {
       {/* Estimation Results */}
       {estimation && (
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">견적 결과</h3>
-          
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            견적 결과
+          </h3>
+
           {/* Selected Filament Info */}
           {estimation.selectedFilament && (
             <div className="mb-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
               <h4 className="font-medium text-gray-800 mb-2 flex items-center">
-                <span className="w-4 h-4 rounded-full mr-2" 
-                      style={{ backgroundColor: estimation.selectedFilament.color }}></span>
+                <span
+                  className="w-4 h-4 rounded-full mr-2"
+                  style={{ backgroundColor: estimation.selectedFilament.color }}
+                ></span>
                 선택된 필라멘트
               </h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div>
                   <span className="text-gray-500">재료:</span>
-                  <span className="ml-2 font-medium">{estimation.selectedFilament.material.type}</span>
+                  <span className="ml-2 font-medium">
+                    {estimation.selectedFilament.material.type}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-500">브랜드:</span>
-                  <span className="ml-2 font-medium">{estimation.selectedFilament.brand}</span>
+                  <span className="ml-2 font-medium">
+                    {estimation.selectedFilament.brand}
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-500">단가:</span>
-                  <span className="ml-2 font-medium">₩{estimation.selectedFilament.costPerGram}/g</span>
+                  <span className="ml-2 font-medium">
+                    ₩{estimation.selectedFilament.costPerGram}/g
+                  </span>
                 </div>
                 <div>
                   <span className="text-gray-500">직경:</span>
-                  <span className="ml-2 font-medium">{estimation.selectedFilament.diameter}mm</span>
+                  <span className="ml-2 font-medium">
+                    {estimation.selectedFilament.diameter}mm
+                  </span>
                 </div>
               </div>
             </div>
           )}
-          
+
           <div className="space-y-4">
             {/* Print Time */}
             <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
@@ -250,24 +283,34 @@ export const EstimationCard = () => {
             {/* Cost Breakdown */}
             {estimation.breakdown && (
               <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-medium text-gray-800 mb-3">비용 세부사항</h4>
+                <h4 className="font-medium text-gray-800 mb-3">
+                  비용 세부사항
+                </h4>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">필라멘트 비용:</span>
-                    <span className="font-medium">₩{estimation.breakdown.filamentCost.toLocaleString()}</span>
+                    <span className="font-medium">
+                      ₩{estimation.breakdown.filamentCost.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">전력 비용:</span>
-                    <span className="font-medium">₩{estimation.breakdown.powerCost.toLocaleString()}</span>
+                    <span className="font-medium">
+                      ₩{estimation.breakdown.powerCost.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">유지 비용:</span>
-                    <span className="font-medium">₩{estimation.breakdown.maintenanceCost.toLocaleString()}</span>
+                    <span className="font-medium">
+                      ₩{estimation.breakdown.maintenanceCost.toLocaleString()}
+                    </span>
                   </div>
                   <div className="border-t pt-2 mt-2">
                     <div className="flex justify-between font-semibold text-base">
                       <span>총 비용:</span>
-                      <span className="text-purple-600">₩{estimation.cost.toLocaleString()}</span>
+                      <span className="text-purple-600">
+                        ₩{estimation.cost.toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -310,7 +353,7 @@ export const EstimationCard = () => {
                 📂 설정 불러오기
               </button>
             </div>
-            
+
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -330,8 +373,8 @@ export const EstimationCard = () => {
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-blue-800">
-                    <strong>프론트엔드 데모 버전:</strong> AMS 필라멘트 관리와 Bambu Lab 설정을 
-                    시뮬레이션하여 정확한 견적을 제공합니다.
+                    <strong>프론트엔드 데모 버전:</strong> AMS 필라멘트 관리와
+                    Bambu Lab 설정을 시뮬레이션하여 정확한 견적을 제공합니다.
                   </p>
                 </div>
               </div>
