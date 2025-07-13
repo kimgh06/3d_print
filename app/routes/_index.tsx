@@ -1,5 +1,6 @@
 import type { MetaFunction } from "@remix-run/node";
-import { ModelViewer } from "~/widgets/model-viewer/ModelViewer";
+import { Link } from "@remix-run/react";
+import { NewModelViewer } from "~/widgets/model-viewer/components/NewModelViewer";
 import { SlicerSettings } from "~/widgets/slicer-settings/SlicerSettings";
 import { EstimationCard } from "~/widgets/estimation-card/EstimationCard";
 import { ModelSettings3MF } from "~/widgets/model-settings-3mf/ModelSettings3MF";
@@ -29,6 +30,12 @@ export default function Index() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              <Link
+                to="/plate-viewer"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+              >
+                🏗️ Plate Viewer
+              </Link>
               <span className="px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
                 ✨ Bambu Lab 호환
               </span>
@@ -48,8 +55,8 @@ export default function Index() {
             3D 모델 업로드부터 견적까지, 한 번에!
           </h2>
           <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            STL, 3MF, OBJ 형식을 모두 지원하며, AI 모델 분석으로 
-            정확한 프린팅 시간, 필라멘트 사용량, 비용을 자동 계산합니다.
+            STL, 3MF, OBJ 형식을 모두 지원하며, AI 모델 분석으로 정확한 프린팅
+            시간, 필라멘트 사용량, 비용을 자동 계산합니다.
           </p>
         </div>
 
@@ -58,11 +65,11 @@ export default function Index() {
           {/* Left Column: Model Viewer & Settings */}
           <div className="lg:col-span-2 space-y-8">
             {/* 3D Model Viewer */}
-            <ModelViewer />
-            
+            <NewModelViewer />
+
             {/* 3MF Settings Display */}
             <ModelSettings3MF />
-            
+
             {/* Slicer Settings */}
             <SlicerSettings />
           </div>
@@ -81,10 +88,12 @@ export default function Index() {
             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
               🎯
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">AI 모델 분석</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              AI 모델 분석
+            </h3>
             <p className="text-gray-600 text-sm">
-              업로드된 3D 모델을 AI가 자동 분석하여 
-              장식용, 기능성, 조립체로 분류하고 최적 설정을 추천합니다.
+              업로드된 3D 모델을 AI가 자동 분석하여 장식용, 기능성, 조립체로
+              분류하고 최적 설정을 추천합니다.
             </p>
           </div>
 
@@ -92,10 +101,12 @@ export default function Index() {
             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               ⚡
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Orca Slicer 연동</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Orca Slicer 연동
+            </h3>
             <p className="text-gray-600 text-sm">
-              업계 표준 Orca Slicer를 백엔드에서 활용하여 
-              정확한 G-code 생성과 신뢰할 수 있는 견적을 제공합니다.
+              업계 표준 Orca Slicer를 백엔드에서 활용하여 정확한 G-code 생성과
+              신뢰할 수 있는 견적을 제공합니다.
             </p>
           </div>
 
@@ -103,10 +114,12 @@ export default function Index() {
             <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
               💰
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">정확한 비용 계산</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              정확한 비용 계산
+            </h3>
             <p className="text-gray-600 text-sm">
-              필라멘트 종류별 단가, 전력비, 마진을 고려한 
-              정확한 3D 프린팅 비용을 실시간으로 계산합니다.
+              필라멘트 종류별 단가, 전력비, 마진을 고려한 정확한 3D 프린팅
+              비용을 실시간으로 계산합니다.
             </p>
           </div>
         </div>
@@ -165,7 +178,8 @@ export default function Index() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <p className="text-gray-400">
-              © 2025 3D Print Estimator. Powered by Remix + Feature-Sliced Design
+              © 2025 3D Print Estimator. Powered by Remix + Feature-Sliced
+              Design
             </p>
             <div className="mt-4 flex justify-center space-x-6 text-sm">
               <span>🔧 Orca Slicer</span>
