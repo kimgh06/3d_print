@@ -4,7 +4,6 @@ import JSZip from "jszip";
 export function hexToRgb(
   hex: string
 ): { r: number; g: number; b: number } | null {
-  // #RRGGBB 또는 #RRGGBBAA 형태 처리
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})/.exec(hex);
   return result
     ? {
@@ -16,16 +15,13 @@ export function hexToRgb(
 }
 
 export function argbToHex(argb: string): string {
-  // ARGB 형태를 RGB 헥스로 변환
   if (argb.length === 8) {
-    // AARRGGBB -> #RRGGBB
     return "#" + argb.substring(2);
   }
   return argb;
 }
 
 export function normalizeColor(color: string): string {
-  // 다양한 색상 형태를 표준 #RRGGBB 형태로 변환
   if (color.startsWith("#")) {
     return color.length > 7 ? color.substring(0, 7) : color;
   }
@@ -59,6 +55,10 @@ export interface ThreeMFMetadata {
 
   // 색상 매핑
   colorMapping?: Record<string, string>; // objectId -> color
+
+  // Production Extension 정보
+  isProductionExtension?: boolean;
+  modelFiles?: string[]; // 분리된 모델 파일 목록
 }
 
 export interface ThreeMFObject {
@@ -76,6 +76,7 @@ export interface ThreeMFObject {
   material?: string;
   materialId?: string; // 재료 ID 참조
   transform?: number[]; // 변환 행렬
+  modelFile?: string; // Production Extension에서 참조하는 모델 파일
 }
 
 export interface ThreeMFMaterial {
@@ -111,7 +112,7 @@ export interface ThreeMFPlate {
   thumbnail?: string;
 }
 
-// 3MF 파일을 파싱하는 메인 함수
+// Bambu Studio 3MF Production Extension 지원 파서
 export async function parse3MFFile(file: File): Promise<ThreeMFMetadata> {
   const zip = await JSZip.loadAsync(file);
   const metadata: ThreeMFMetadata = {
@@ -120,37 +121,63 @@ export async function parse3MFFile(file: File): Promise<ThreeMFMetadata> {
   };
 
   try {
-    // 3D 모델 데이터 파싱
-    const modelFile = zip.file("3D/3dmodel.model");
-    if (modelFile) {
-      const modelXML = await modelFile.async("string");
-      await parseModelXML(modelXML, metadata);
+    // 1. 루트 모델 파일 확인 (3MF Production Extension 감지)
+    const rootModelFile = zip.file("3D/3dmodel.model");
+    if (!rootModelFile) {
+      throw new Error("3MF 파일에 루트 모델 파일이 없습니다.");
     }
 
-    // 썸네일 이미지 추출
+    const rootModelXML = await rootModelFile.async("string");
+    const isProductionExtension = await detectProductionExtension(rootModelXML);
+    metadata.isProductionExtension = isProductionExtension;
+
+    // 2. 병렬로 여러 작업을 동시에 실행
+    const parsePromises = [];
+
+    // 3. 루트 모델 XML 파싱 (필수)
+    parsePromises.push(parseRootModelXML(rootModelXML, metadata));
+
+    // 4. 썸네일 이미지 추출 (선택적, 지연 로딩)
     const thumbnailFile = zip.file("Metadata/thumbnail.png");
     if (thumbnailFile) {
-      const thumbnailBlob = await thumbnailFile.async("blob");
-      metadata.thumbnail = await blobToBase64(thumbnailBlob);
+      parsePromises.push(
+        thumbnailFile.async("blob").then(async (blob) => {
+          metadata.thumbnail = await blobToBase64(blob);
+        })
+      );
     }
 
-    // Bambu Studio/OrcaSlicer 설정 파싱
+    // 5. Bambu Studio/OrcaSlicer 설정 파싱 (선택적)
     const configFile = zip.file("Metadata/Slic3r_PE.config");
     if (configFile) {
-      const configText = await configFile.async("string");
-      metadata.printSettings = parsePrintSettings(configText);
+      parsePromises.push(
+        configFile.async("string").then((configText) => {
+          metadata.printSettings = parsePrintSettings(configText);
+        })
+      );
     }
 
-    // 플레이트 정보 파싱 (Bambu Studio 전용)
+    // 6. 플레이트 정보 파싱 (Bambu Studio 전용)
     const plateFiles = Object.keys(zip.files).filter(
       (name) => name.startsWith("Metadata/plate_") && name.endsWith(".png")
     );
-
     if (plateFiles.length > 0) {
-      metadata.plates = await parsePlateInfo(zip, plateFiles);
+      parsePromises.push(
+        parsePlateInfo(zip, plateFiles).then((plates) => {
+          metadata.plates = plates;
+        })
+      );
     }
 
-    console.log("3MF 파일 파싱 완료:", metadata);
+    // 7. Production Extension인 경우 분리된 모델 파일들 처리
+    if (isProductionExtension) {
+      parsePromises.push(parseProductionExtensionModels(zip, metadata));
+    }
+
+    // 모든 파싱 작업을 병렬로 실행
+    await Promise.all(parsePromises);
+
+    console.log("3MF 파일 파싱 완료 (Production Extension 지원):", metadata);
     return metadata;
   } catch (error) {
     console.error("3MF 파일 파싱 중 오류:", error);
@@ -162,8 +189,25 @@ export async function parse3MFFile(file: File): Promise<ThreeMFMetadata> {
   }
 }
 
-// 3D 모델 XML 파싱
-async function parseModelXML(
+// 3MF Production Extension 감지
+async function detectProductionExtension(
+  rootModelXML: string
+): Promise<boolean> {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(rootModelXML, "application/xml");
+
+  // Production Extension의 특징: resources 섹션에 외부 파일 참조가 있음
+  const resources = doc.querySelector("resources");
+  if (resources) {
+    const externalReferences = resources.querySelectorAll("object[path]");
+    return externalReferences.length > 0;
+  }
+
+  return false;
+}
+
+// 루트 모델 XML 파싱 (Production Extension 지원)
+async function parseRootModelXML(
   xmlContent: string,
   metadata: ThreeMFMetadata
 ): Promise<void> {
@@ -198,7 +242,7 @@ async function parseModelXML(
     }
   });
 
-  // 재료 정보 파싱 (개선)
+  // 재료 정보 파싱
   const materialElements = doc.querySelectorAll("material");
   materialElements.forEach((element) => {
     const id = element.getAttribute("id");
@@ -210,7 +254,7 @@ async function parseModelXML(
         name: name || undefined,
       };
 
-      // 색상 정보 추출 (다양한 형태 지원)
+      // 색상 정보 추출
       const colorElement = element.querySelector("color");
       if (colorElement) {
         const colorValue = colorElement.getAttribute("value");
@@ -249,12 +293,13 @@ async function parseModelXML(
     }
   });
 
-  // 객체 정보 파싱 (개선)
+  // 객체 정보 파싱 (Production Extension 지원)
   const objectElements = doc.querySelectorAll("object");
   objectElements.forEach((element) => {
     const id = element.getAttribute("id");
     const name = element.getAttribute("name");
     const type = element.getAttribute("type");
+    const path = element.getAttribute("path"); // Production Extension에서 외부 파일 경로
 
     if (id) {
       const object: ThreeMFObject = {
@@ -262,6 +307,11 @@ async function parseModelXML(
         name: name || undefined,
         type: type || undefined,
       };
+
+      // Production Extension: 외부 모델 파일 참조
+      if (path) {
+        object.modelFile = path;
+      }
 
       // 재료 참조
       const materialId = element.getAttribute("materialid");
@@ -272,7 +322,6 @@ async function parseModelXML(
           object.material = material.name;
           object.color = material.displayColor || material.color;
 
-          // 색상 매핑에 추가
           if (object.color) {
             metadata.colorMapping![id] = object.color;
           }
@@ -292,42 +341,134 @@ async function parseModelXML(
         object.transform = transformAttr.split(" ").map(parseFloat);
       }
 
-      // 메쉬 정보 파싱
-      const meshElements = element.querySelectorAll("mesh");
-      object.meshCount = meshElements.length;
+      // 빌드 정보에서 객체 배치 파싱
+      const buildElements = doc.querySelectorAll("build item");
+      buildElements.forEach((item) => {
+        const objectId = item.getAttribute("objectid");
+        const transform = item.getAttribute("transform");
 
-      // 삼각형 개수 계산
-      let triangleCount = 0;
-      meshElements.forEach((mesh) => {
-        const triangles = mesh.querySelectorAll("triangle");
-        triangleCount += triangles.length;
+        if (objectId === id && transform) {
+          object.transform = transform.split(" ").map(parseFloat);
+        }
       });
-      object.triangleCount = triangleCount;
 
       metadata.objects.push(object);
     }
   });
+}
 
-  // 빌드 정보에서 객체 배치 파싱
-  const buildElements = doc.querySelectorAll("build item");
-  buildElements.forEach((item) => {
-    const objectId = item.getAttribute("objectid");
-    const transform = item.getAttribute("transform");
+// Production Extension 모델 파일들 파싱
+async function parseProductionExtensionModels(
+  zip: JSZip,
+  metadata: ThreeMFMetadata
+): Promise<void> {
+  const modelFiles: string[] = [];
 
-    if (objectId) {
-      const object = metadata.objects.find((o) => o.id === objectId);
-      if (object && transform) {
-        object.transform = transform.split(" ").map(parseFloat);
+  // 분리된 모델 파일들 찾기
+  Object.keys(zip.files).forEach((fileName) => {
+    if (fileName.startsWith("3D/3dmodel_") && fileName.endsWith(".model")) {
+      modelFiles.push(fileName);
+    }
+  });
+
+  metadata.modelFiles = modelFiles;
+
+  // 각 모델 파일을 병렬로 파싱
+  const modelParsePromises = modelFiles.map(async (fileName) => {
+    const modelFile = zip.file(fileName);
+    if (modelFile) {
+      const modelXML = await modelFile.async("string");
+      return parseIndividualModelXML(modelXML, fileName);
+    }
+    return null;
+  });
+
+  const modelResults = await Promise.all(modelParsePromises);
+
+  // 결과를 메타데이터에 병합
+  modelResults.forEach((result) => {
+    if (result) {
+      // 개별 모델의 메쉬 정보를 해당 객체에 추가
+      const object = metadata.objects.find(
+        (obj) => obj.modelFile === result.fileName
+      );
+      if (object) {
+        object.meshCount = result.meshCount;
+        object.triangleCount = result.triangleCount;
+        object.boundingBox = result.boundingBox;
       }
     }
   });
+}
+
+// 개별 모델 XML 파싱
+async function parseIndividualModelXML(
+  xmlContent: string,
+  fileName: string
+): Promise<{
+  fileName: string;
+  meshCount: number;
+  triangleCount: number;
+  boundingBox?: {
+    min: { x: number; y: number; z: number };
+    max: { x: number; y: number; z: number };
+  };
+} | null> {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlContent, "application/xml");
+
+  const meshElements = doc.querySelectorAll("mesh");
+  const meshCount = meshElements.length;
+
+  // 삼각형 개수 계산
+  let triangleCount = 0;
+  meshElements.forEach((mesh) => {
+    const triangles = mesh.querySelectorAll("triangle");
+    triangleCount += triangles.length;
+  });
+
+  // 바운딩 박스 계산 (간단한 버전)
+  let minX = Infinity,
+    minY = Infinity,
+    minZ = Infinity;
+  let maxX = -Infinity,
+    maxY = -Infinity,
+    maxZ = -Infinity;
+
+  const vertices = doc.querySelectorAll("vertices vertex");
+  vertices.forEach((vertex) => {
+    const x = parseFloat(vertex.getAttribute("x") || "0");
+    const y = parseFloat(vertex.getAttribute("y") || "0");
+    const z = parseFloat(vertex.getAttribute("z") || "0");
+
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    minZ = Math.min(minZ, z);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+    maxZ = Math.max(maxZ, z);
+  });
+
+  const boundingBox =
+    vertices.length > 0
+      ? {
+          min: { x: minX, y: minY, z: minZ },
+          max: { x: maxX, y: maxY, z: maxZ },
+        }
+      : undefined;
+
+  return {
+    fileName,
+    meshCount,
+    triangleCount,
+    boundingBox,
+  };
 }
 
 // 프린트 설정 파싱
 function parsePrintSettings(configText: string): ThreeMFPrintSettings {
   const settings: ThreeMFPrintSettings = {};
 
-  // 설정 파싱 (키=값 형태)
   const lines = configText.split("\n");
   lines.forEach((line) => {
     const [key, value] = line.split("=").map((s) => s.trim());
@@ -391,7 +532,7 @@ async function parsePlateInfo(
       plates.push({
         id: plateId,
         name: `Plate ${plateId}`,
-        objects: [], // 실제 구현에서는 플레이트별 객체 정보 파싱 필요
+        objects: [],
         thumbnail,
       });
     }

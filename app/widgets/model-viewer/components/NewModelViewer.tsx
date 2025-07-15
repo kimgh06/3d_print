@@ -1,7 +1,23 @@
-import { useRef, useCallback, useState } from "react";
+import { useRef, useCallback, useState, useEffect } from "react";
 import { useNewOnline3DViewer } from "~/features/preview/useNewOnline3DViewer";
 import { ModelInfoPanel } from "./ModelInfoPanel";
 import { ColorPalette } from "./ColorPalette";
+import {
+  getJSSlicer,
+  SlicerSettings,
+  SlicingResult,
+} from "~/shared/lib/js-slicer";
+
+// 임시 팔레트 (실제 색상 배열로 대체 가능)
+const DEFAULT_PALETTE = [
+  { r: 255, g: 0, b: 0 },
+  { r: 0, g: 255, b: 0 },
+  { r: 0, g: 0, b: 255 },
+  { r: 255, g: 255, b: 0 },
+  { r: 255, g: 128, b: 0 },
+  { r: 255, g: 255, b: 255 },
+  { r: 0, g: 0, b: 0 },
+];
 
 export const NewModelViewer = () => {
   const {
@@ -20,11 +36,93 @@ export const NewModelViewer = () => {
   } = useNewOnline3DViewer();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showModelInfo, setShowModelInfo] = useState(false);
+  const [slicingResult, setSlicingResult] = useState<SlicingResult | null>(
+    null
+  );
+  const [isSlicing, setIsSlicing] = useState(false);
+  const [slicingError, setSlicingError] = useState<string | null>(null);
+  const [slicerSettings, setSlicerSettings] = useState<SlicerSettings>({
+    layerHeight: 0.2,
+    infillDensity: 20,
+  });
+  // 페인팅 관련 상태
+  const [paintingMode, setPaintingMode] = useState(false);
+  const [brushColor, setBrushColor] = useState(DEFAULT_PALETTE[0]);
+  const [selectedColorIdx, setSelectedColorIdx] = useState(0);
 
   const isLibraryLoaded = libraryStatus === "Initialized";
   const hasColorInfo =
     modelMetadata?.colorMapping &&
     Object.keys(modelMetadata.colorMapping).length > 0;
+
+  // 브러시로 색칠하는 함수 (Three.js Mesh 접근 필요)
+  const paintVertex = useCallback(
+    (event: PointerEvent) => {
+      if (!paintingMode || !mountRef.current) return;
+      // Online3DViewer가 Three.js Mesh에 접근할 수 있어야 함
+      // window.OV.GlobalViewerInstance로 접근 시도 (Online3DViewer 내부 구조에 따라 다름)
+      // 아래는 예시 코드 (실제 환경에 맞게 수정 필요)
+      // @ts-ignore
+      const viewer = window.OV && window.OV.GlobalViewerInstance;
+      if (!viewer || !viewer.threeScene) return;
+      const scene = viewer.threeScene;
+      const camera = viewer.threeCamera;
+      const renderer = viewer.threeRenderer;
+      if (!scene || !camera || !renderer) return;
+
+      // 마우스 좌표 → NDC 변환
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouse = {
+        x: ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        y: -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      };
+      // Raycaster로 교차점 찾기
+      // @ts-ignore
+      const raycaster = new window.THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      // @ts-ignore
+      const intersects = raycaster.intersectObjects(scene.children, true);
+      if (intersects.length > 0) {
+        const intersect = intersects[0];
+        const mesh = intersect.object;
+        if (!mesh.geometry || !mesh.geometry.attributes.position) return;
+        // vertexColors가 없으면 추가
+        if (!mesh.geometry.attributes.color) {
+          const count = mesh.geometry.attributes.position.count;
+          const colorAttr = new window.THREE.BufferAttribute(
+            new Float32Array(count * 3),
+            3
+          );
+          mesh.geometry.setAttribute("color", colorAttr);
+        }
+        // 클릭된 vertex index 찾기
+        const idx = intersect.face?.a;
+        if (idx === undefined) return;
+        const colorAttr = mesh.geometry.attributes.color;
+        colorAttr.setXYZ(
+          idx,
+          brushColor.r / 255,
+          brushColor.g / 255,
+          brushColor.b / 255
+        );
+        colorAttr.needsUpdate = true;
+        mesh.material.vertexColors = true;
+      }
+    },
+    [paintingMode, brushColor, mountRef]
+  );
+
+  // mountRef에 pointerdown 이벤트 연결
+  useEffect(() => {
+    if (!paintingMode || !mountRef.current) return;
+    const el = mountRef.current;
+    el.style.cursor = "crosshair";
+    el.addEventListener("pointerdown", paintVertex);
+    return () => {
+      el.style.cursor = "";
+      el.removeEventListener("pointerdown", paintVertex);
+    };
+  }, [paintingMode, paintVertex, mountRef]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -55,6 +153,31 @@ export const NewModelViewer = () => {
     fileInputRef.current?.click();
   };
 
+  const handleSliceModel = useCallback(async () => {
+    if (!hasModel || !currentFiles || currentFiles.length === 0) {
+      setSlicingError("모델이 로드되지 않았습니다.");
+      return;
+    }
+
+    setIsSlicing(true);
+    setSlicingError(null);
+    setSlicingResult(null);
+
+    try {
+      const slicer = getJSSlicer();
+      await slicer.initialize();
+
+      const result = await slicer.sliceModel(currentFiles[0], slicerSettings);
+      setSlicingResult(result);
+      console.log("✅ 모델 슬라이싱 완료:", result);
+    } catch (err) {
+      setSlicingError(err instanceof Error ? err.message : "슬라이싱 실패");
+      console.error("❌ 모델 슬라이싱 실패:", err);
+    } finally {
+      setIsSlicing(false);
+    }
+  }, [hasModel, currentFiles, slicerSettings]);
+
   return (
     <div className="w-full h-full flex flex-col bg-gray-900 relative">
       {/* 헤더 */}
@@ -69,12 +192,6 @@ export const NewModelViewer = () => {
             )}
             {isLibraryLoaded && (
               <div className="text-green-400 text-sm">✓ Library loaded</div>
-            )}
-            {hasColorInfo && (
-              <div className="flex items-center space-x-2">
-                <div className="text-blue-400 text-sm">🎨 Colors detected</div>
-                <ColorPalette colorMapping={modelMetadata!.colorMapping!} />
-              </div>
             )}
           </div>
         </div>
@@ -127,6 +244,37 @@ export const NewModelViewer = () => {
             Model Info
           </button>
 
+          <button
+            onClick={handleSliceModel}
+            disabled={!hasModel || !isLibraryLoaded || isSlicing}
+            className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isSlicing ? "🔪 슬라이싱 중..." : "🔪 슬라이싱"}
+          </button>
+
+          {/* 페인팅 모드 토글 */}
+          <button
+            onClick={() => setPaintingMode((v) => !v)}
+            className={`px-3 py-2 rounded-lg transition-colors ${
+              paintingMode
+                ? "bg-yellow-600 hover:bg-yellow-700"
+                : "bg-gray-600 hover:bg-gray-700"
+            } text-white`}
+          >
+            {paintingMode ? "🖌️ 페인팅 종료" : "🖌️ 페인팅 시작"}
+          </button>
+
+          {/* 팔레트 항상 표시 */}
+          <ColorPalette
+            colors={DEFAULT_PALETTE}
+            selectedIndex={selectedColorIdx}
+            onSelect={(idx) => {
+              setSelectedColorIdx(idx);
+              setBrushColor(DEFAULT_PALETTE[idx]);
+            }}
+            className="ml-4"
+          />
+
           {hasModel && (
             <div className="text-gray-300 text-sm flex items-center space-x-2">
               <span>✓ Model loaded</span>
@@ -135,7 +283,16 @@ export const NewModelViewer = () => {
                   ({Object.keys(modelMetadata!.colorMapping!).length} colors)
                 </span>
               )}
+              {slicingResult && (
+                <span className="text-green-300">
+                  ({slicingResult.totalLayers} layers sliced)
+                </span>
+              )}
             </div>
+          )}
+
+          {slicingError && (
+            <div className="text-red-400 text-sm">❌ {slicingError}</div>
           )}
         </div>
       </div>
@@ -199,54 +356,22 @@ export const NewModelViewer = () => {
               )}
             </div>
 
-            {/* Online3DViewer 마운트 포인트 */}
-            <div
-              ref={mountRef}
-              className="w-full h-full"
-              style={{ minHeight: "400px" }}
-            />
-
-            {/* 모델 로드 후 드래그 앤 드롭 힌트 (우측 하단) */}
-            {hasModel && (
-              <div
-                className="absolute bottom-4 right-4 bg-gray-800 bg-opacity-90 text-white p-3 rounded-lg pointer-events-auto"
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-              >
-                <div className="text-xs text-gray-300 mb-1">
-                  Drop new model to replace
-                </div>
-                <div className="text-xs text-gray-400">
-                  Or use Load Model button
-                </div>
-              </div>
-            )}
-
-            {/* 색상 정보 힌트 */}
-            {hasModel && hasColorInfo && (
-              <div className="absolute top-4 left-4 bg-blue-600 bg-opacity-90 text-white p-3 rounded-lg pointer-events-none">
-                <div className="text-xs font-medium">
-                  🎨 Multi-color model detected
-                </div>
-                <div className="text-xs text-blue-100 mt-1">
-                  {Object.keys(modelMetadata!.colorMapping!).length} objects
-                  with colors
-                </div>
-                <div className="text-xs text-blue-200 mt-1">
-                  Use &apos;Apply Colors&apos; button if needed
-                </div>
-              </div>
-            )}
+            {/* 3D 뷰어 */}
+            <div ref={mountRef} className="w-full h-full" />
           </div>
         </div>
 
         {/* 모델 정보 패널 */}
-        <ModelInfoPanel
-          metadata={modelMetadata}
-          currentFiles={currentFiles}
-          isVisible={showModelInfo}
-          onClose={() => setShowModelInfo(false)}
-        />
+        {showModelInfo && (
+          <div className="absolute top-0 right-0 w-96 h-full z-30">
+            <ModelInfoPanel
+              metadata={modelMetadata}
+              currentFiles={currentFiles}
+              isVisible={showModelInfo}
+              onClose={() => setShowModelInfo(false)}
+            />
+          </div>
+        )}
       </div>
 
       {/* 숨겨진 파일 입력 */}

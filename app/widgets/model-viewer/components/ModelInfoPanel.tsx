@@ -4,7 +4,7 @@ import {
   formatFileSize,
   formatDate,
 } from "~/shared/lib/3mf-parser";
-import { ExtendedColorPalette } from "./ColorPalette";
+import { ColorPalette } from "./ColorPalette";
 
 interface ModelInfoPanelProps {
   metadata: ThreeMFMetadata | null;
@@ -327,7 +327,7 @@ const MaterialsInfo: React.FC<{ metadata: ThreeMFMetadata | null }> = ({
             objects)
           </div>
 
-          <ExtendedColorPalette colorMapping={metadata!.colorMapping!} />
+          <ColorPalette colorMapping={metadata!.colorMapping!} />
 
           <div className="mt-4 p-2 bg-blue-900 bg-opacity-30 rounded text-xs text-blue-200">
             💡 Tip: Use the &apos;Apply Colors&apos; button in the toolbar to

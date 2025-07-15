@@ -11,6 +11,7 @@
 
 - 🔄 **고급 3D 뷰어**: Online3DViewer 기반 다중 포맷 지원 (STL/3MF/OBJ/PLY/GLTF/GLB)
 - 🎨 **3MF 색상 지원**: 멀티컬러 3MF 파일의 색상 정보 파싱 및 표시
+- 🔧 **WASM 슬라이서**: WebAssembly 기반 브라우저 내 고성능 슬라이싱
 - 🤖 **AI 모델 분석**: 파일명, 크기, 형식 기반 스마트 분류 (장식용/기능성/조립체)
 - ⚙️ **자동 슬라이싱 설정**: 분류별 최적화된 프린팅 설정 추천
 - 💰 **정확한 견적 산출**: 프린팅 시간, 필라멘트 사용량, 비용 자동 계산
@@ -26,6 +27,13 @@
 - **State Management**: Zustand
 - **3D Rendering**: Online3DViewer (Three.js 기반)
 - **Architecture**: Feature-Sliced Design (FSD)
+
+### WASM Slicer
+
+- **WebAssembly**: Emscripten 기반 C++ 슬라이서
+- **3D Processing**: 브라우저 내 고성능 슬라이싱
+- **G-code Generation**: 실시간 G-code 생성
+- **Memory Optimization**: 효율적인 메모리 관리
 
 ### Backend (연동 예정)
 
@@ -49,12 +57,18 @@ app/
 │   ├── model-viewer/  # 3D 모델 뷰어 (NewModelViewer)
 │   ├── model-settings-3mf/ # 3MF 설정 표시
 │   ├── slicer-settings/    # 슬라이서 설정
+│   ├── wasm-slicer/   # WASM 슬라이서 UI
 │   └── layout/        # 레이아웃 컴포넌트
 ├── shared/            # 공유 유틸리티
-│   ├── lib/          # Zustand 스토어
+│   ├── lib/          # Zustand 스토어, WASM 래퍼
 │   └── config/       # 설정 파일
 └── routes/           # Remix 라우트
     └── _index.tsx    # 메인 페이지
+
+wasm/                 # WebAssembly 슬라이서
+├── src/              # C++ 소스 코드
+├── build/            # 빌드 출력
+└── CMakeLists.txt    # CMake 설정
 ```
 
 ## 🚀 시작하기
@@ -70,6 +84,11 @@ app/
 # 의존성 설치
 npm install
 
+# WASM 슬라이서 빌드 (선택사항)
+cd wasm
+# Windows: build.bat
+# Linux/Mac: ./build.sh
+
 # 개발 서버 시작
 npm run dev
 
@@ -81,6 +100,25 @@ npm start
 ```
 
 개발 서버가 시작되면 `http://localhost:5173`에서 확인할 수 있습니다.
+
+### WASM 슬라이서 빌드
+
+WASM 슬라이서를 사용하려면 Emscripten SDK가 필요합니다:
+
+```bash
+# Emscripten SDK 설치
+git clone https://github.com/emscripten-core/emsdk.git
+cd emsdk
+./emsdk install latest
+./emsdk activate latest
+source ./emsdk_env.sh  # Linux/Mac
+# 또는 emsdk_env.bat    # Windows
+
+# WASM 빌드
+cd wasm
+./build.sh  # Linux/Mac
+# 또는 build.bat  # Windows
+```
 
 ## 📱 사용 방법
 
@@ -107,6 +145,12 @@ npm start
 - **예상 비용**: 재료비 + 전력비 포함
 - **모델 정보**: 바운딩 박스, 부피, 표면적 등 상세 정보
 
+### 5단계: WASM 슬라이싱 (선택사항)
+
+- **브라우저 내 슬라이싱**: WebAssembly 기반 고성능 슬라이싱
+- **실시간 G-code 생성**: 즉시 다운로드 가능한 G-code 파일
+- **레이어별 정보**: 상세한 슬라이싱 결과 및 통계
+
 ## 🎨 주요 특징
 
 ### Online3DViewer 기반 고급 3D 뷰어
@@ -123,6 +167,13 @@ npm start
 - 파일명, 크기, 형식 기반 모델 분류
 - 분류별 최적화된 프린팅 설정 템플릿 적용
 - 복잡도, 서포트 필요성 등을 고려한 다중 추천
+
+### WASM 기반 브라우저 슬라이싱
+
+- **WebAssembly 성능**: 네이티브에 근접한 C++ 성능
+- **실시간 처리**: 서버 없이 브라우저에서 직접 슬라이싱
+- **메모리 효율성**: 최적화된 메모리 사용량 (128MB 제한)
+- **G-code 생성**: 표준 G-code 포맷으로 즉시 다운로드
 
 ### Bambu Lab 호환 설정
 
